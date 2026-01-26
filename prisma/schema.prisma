@@ -161,7 +161,7 @@ model Location {
   altitude    Int? // e.g. 1400
   description String? // e.g. "City of Temples"
   imageUrl    String? @db.Text // 👈 Added for visual dashboard
-
+  country     String   @default("Nepal")
   // Relations
   hotels     Hotel[]
   activities Activity[]

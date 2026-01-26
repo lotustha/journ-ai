@@ -19,6 +19,7 @@ const ACCEPTED_IMAGE_TYPES = [
 // Schema
 const LocationSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
+  country: z.string().min(2),
   altitude: z.number().optional(),
   description: z.string().optional(),
 });
@@ -71,6 +72,7 @@ export async function createLocation(prevState: any, formData: FormData) {
   const data = LocationSchema.safeParse({
     name: formData.get("name"),
     altitude: altitude,
+    country: formData.get('country'),
     description: description,
   });
 
@@ -112,6 +114,7 @@ export async function updateLocation(prevState: any, formData: FormData) {
 
   const data = LocationSchema.safeParse({
     name: formData.get("name"),
+    country: formData.get('country'),
     altitude: altitude,
     description: description,
   });
@@ -176,7 +179,7 @@ export async function deleteLocation(id: string) {
       const filePath = path.join(process.cwd(), "public", loc.imageUrl);
       try {
         await fs.unlink(filePath);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     await prisma.location.delete({ where: { id } });
