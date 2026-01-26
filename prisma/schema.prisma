@@ -1,0 +1,285 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// =========================================
+// 1. ENUMS
+// =========================================
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+  CLIENT
+}
+
+enum TourStatus {
+  DRAFT
+  DESIGNED
+  AGENCY_REVIEW
+  PAYMENT_PENDING
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+}
+
+enum PaymentType {
+  ADVANCE
+  BALANCE
+}
+
+enum PaymentStatus {
+  PENDING
+  VERIFYING
+  COMPLETED
+  FAILED
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// =========================================
+// 2. USER & AUTH
+// =========================================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         Role     @default(STAFF)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  notifications Notification[]
+  createdTours  Tour[]         @relation("TourCreator")
+  bookedTours   Tour[]         @relation("TourClient")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([email, token])
+}
+
+// =========================================
+// 3. CORE TOUR MANAGEMENT
+// =========================================
+
+model Tour {
+  id     String     @id @default(cuid())
+  name   String
+  status TourStatus @default(DRAFT)
+
+  // Logistics
+  startLocation String
+  destination   String
+  startDate     DateTime
+  endDate       DateTime
+  duration      Int
+
+  // Ownership
+  creatorId String?
+  creator   User?   @relation("TourCreator", fields: [creatorId], references: [id])
+
+  clientId String?
+  client   User?   @relation("TourClient", fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  financials         TourFinancials?
+  participantSummary ParticipantSummary?
+  itinerary          ItineraryDay[]
+  payments           PaymentTransaction[]
+  incidents          IncidentLog[]
+}
+
+model TourFinancials {
+  id     String @id @default(cuid())
+  tourId String @unique
+  tour   Tour   @relation(fields: [tourId], references: [id], onDelete: Cascade)
+
+  budget         Decimal @default(0.00) @db.Decimal(10, 2)
+  profitMargin   Decimal @default(0.00) @db.Decimal(5, 2)
+  sellingPrice   Decimal @default(0.00) @db.Decimal(10, 2)
+  totalCollected Decimal @default(0.00) @db.Decimal(10, 2)
+}
+
+model ParticipantSummary {
+  id     String @id @default(cuid())
+  tourId String @unique
+  tour   Tour   @relation(fields: [tourId], references: [id], onDelete: Cascade)
+
+  totalPax Int @default(0)
+  boys     Int @default(0)
+  girls    Int @default(0)
+  veg      Int @default(0)
+  nonVeg   Int @default(0)
+}
+
+model PaymentTransaction {
+  id     String @id @default(cuid())
+  tourId String
+  tour   Tour   @relation(fields: [tourId], references: [id])
+
+  amount Decimal       @db.Decimal(10, 2)
+  type   PaymentType
+  status PaymentStatus @default(PENDING)
+
+  provider String? // e.g. "ESEWA", "BANK_TRANSFER"
+  txId     String?
+  proofUrl String?
+
+  createdAt DateTime @default(now())
+}
+
+// =========================================
+// 4. RESOURCE LIBRARY (LOCATIONS & ASSETS)
+// =========================================
+
+model Location {
+  id          String  @id @default(cuid())
+  name        String  @unique // e.g. "Kathmandu", "Pokhara"
+  altitude    Int? // e.g. 1400
+  description String? // e.g. "City of Temples"
+  imageUrl    String? @db.Text // 👈 Added for visual dashboard
+
+  // Relations
+  hotels     Hotel[]
+  activities Activity[]
+
+  createdAt DateTime @default(now())
+}
+
+model Hotel {
+  id   String @id @default(cuid())
+  name String
+
+  // Link to Location
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  contactInfo String?
+  imageUrl    String? @db.Text // 👈 Added
+
+  // Pricing & Usage
+  rates         HotelRoomRate[]
+  itineraryDays ItineraryDay[]
+
+  createdAt DateTime @default(now())
+}
+
+model HotelRoomRate {
+  id      String @id @default(cuid())
+  hotelId String
+  hotel   Hotel  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  roomType   String // "Standard", "Deluxe"
+  mealPlan   String // "EP", "BB", "MAP"
+  inclusions String? @db.Text // "2 Eggs, Toast"
+
+  costPrice Decimal @db.Decimal(10, 2)
+  currency  String  @default("NPR")
+}
+
+model Vehicle {
+  id            String  @id @default(cuid())
+  name          String // "Toyota Scorpio"
+  type          String // "SUV", "Bus"
+  plateNumber   String?
+  driverName    String?
+  contactNumber String?
+  imageUrl      String? @db.Text // 👈 Added
+
+  // Pricing Logic
+  ratePerDay      Decimal @default(0.00) @db.Decimal(10, 2)
+  ratePerKm       Decimal @default(0.00) @db.Decimal(10, 2)
+  driverAllowance Decimal @default(0.00) @db.Decimal(10, 2)
+  currency        String  @default("NPR")
+
+  itineraryDays ItineraryDay[]
+}
+
+model Activity {
+  id   String @id @default(cuid())
+  name String
+
+  // Link to Location
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id])
+
+  imageUrl String? @db.Text // 👈 Added
+
+  costPerHead Decimal @default(0.00) @db.Decimal(10, 2)
+  currency    String  @default("NPR")
+
+  itineraryDays ItineraryDay[]
+}
+
+// =========================================
+// 5. ITINERARY LINKING
+// =========================================
+
+model ItineraryDay {
+  id        String @id @default(cuid())
+  tourId    String
+  tour      Tour   @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  dayNumber Int
+
+  // Resource Links (Nullable because a day might not use all)
+  hotelId String?
+  hotel   Hotel?  @relation(fields: [hotelId], references: [id])
+
+  activityId String?
+  activity   Activity? @relation(fields: [activityId], references: [id])
+
+  transportId String?
+  vehicle     Vehicle? @relation(fields: [transportId], references: [id])
+
+  notes String? @db.Text
+}
+
+// =========================================
+// 6. OPERATIONS & SAFETY
+// =========================================
+
+model IncidentLog {
+  id     String @id @default(cuid())
+  tourId String
+  tour   Tour   @relation(fields: [tourId], references: [id])
+
+  title       String
+  description String           @db.Text
+  severity    IncidentSeverity @default(LOW)
+  reportedAt  DateTime         @default(now())
+  resolved    Boolean          @default(false)
+}
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
