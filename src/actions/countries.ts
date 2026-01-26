@@ -16,14 +16,12 @@ const ACCEPTED_IMAGE_TYPES = [
 ];
 
 async function saveImageLocally(file: File | null): Promise<string | null> {
-  // strict check: if file is null, undefined, or size 0, return null immediately
-  if (!file || file.size === 0 || file.name === "undefined") return null;
+  if (!file || file.size === 0) return null;
   if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) return null;
 
   const fileExt = file.name.split(".").pop();
   const fileName = `${crypto.randomUUID()}.${fileExt}`;
   const uploadDir = path.join(process.cwd(), "public", "uploads");
-
   try {
     await fs.access(uploadDir);
   } catch {
@@ -32,75 +30,68 @@ async function saveImageLocally(file: File | null): Promise<string | null> {
 
   const buffer = Buffer.from(await file.arrayBuffer());
   await fs.writeFile(path.join(uploadDir, fileName), buffer);
-
   return `/uploads/${fileName}`;
 }
 
-const LocationSchema = z.object({
+const CountrySchema = z.object({
   name: z.string().min(2),
-  countryId: z.string().min(1, "Country is required"),
-  altitude: z.coerce.number().optional(),
   description: z.string().optional(),
 });
 
-export async function createLocation(prevState: any, formData: FormData) {
-  const data = LocationSchema.safeParse({
+// --- ACTIONS ---
+
+export async function createCountry(prevState: any, formData: FormData) {
+  const data = CountrySchema.safeParse({
     name: formData.get("name"),
-    countryId: formData.get("countryId"),
-    altitude: formData.get("altitude"),
-    type: formData.get("type") as string,
     description: formData.get("description"),
   });
 
-  if (!data.success) return { error: "Invalid form data" };
+  if (!data.success) return { error: "Invalid data" };
 
-  // 1. Cover Image (Ensure we get the file object correctly)
-  const coverFile = formData.get("image") as File | null;
+  // 1. Cover Image
+  const coverFile = formData.get("coverImage") as File | null;
   const coverUrl = await saveImageLocally(coverFile);
 
-  // 2. Gallery
+  // 2. Gallery Images
   const galleryFiles = formData.getAll("galleryImages") as File[];
   const galleryUrls: string[] = [];
+
   for (const file of galleryFiles) {
     const url = await saveImageLocally(file);
     if (url) galleryUrls.push(url);
   }
 
   try {
-    await prisma.location.create({
+    await prisma.country.create({
       data: {
         ...data.data,
-        imageUrl: coverUrl, // Pass the processed URL
+        imageUrl: coverUrl,
         images: {
           create: galleryUrls.map((url) => ({ url })),
         },
       },
     });
     revalidatePath("/dashboard/resources");
-    return { success: true, message: "Location created successfully" };
+    return { success: true, message: "Country added" };
   } catch (e) {
-    console.error(e);
-    return { error: "Failed to create location" };
+    return { error: "Country already exists" };
   }
 }
 
-// ... (Keep updateLocation and deleteLocation as is) ...
-// (Reuse the updateLocation and deleteLocation code from previous response)
-export async function updateLocation(prevState: any, formData: FormData) {
+export async function updateCountry(prevState: any, formData: FormData) {
   const id = formData.get("id") as string;
-  const data = LocationSchema.safeParse({
+  const data = CountrySchema.safeParse({
     name: formData.get("name"),
-    countryId: formData.get("countryId"),
-    altitude: formData.get("altitude"),
-    type: formData.get("type") as string,
     description: formData.get("description"),
   });
 
   if (!data.success) return { error: "Invalid data" };
 
-  const coverFile = formData.get("image") as File | null;
+  // 1. New Cover?
+  const coverFile = formData.get("coverImage") as File | null;
   const newCoverUrl = await saveImageLocally(coverFile);
 
+  // 2. New Gallery Images?
   const galleryFiles = formData.getAll("galleryImages") as File[];
   const newGalleryUrls: string[] = [];
   for (const file of galleryFiles) {
@@ -112,7 +103,7 @@ export async function updateLocation(prevState: any, formData: FormData) {
     const updateData: any = { ...data.data };
     if (newCoverUrl) updateData.imageUrl = newCoverUrl;
 
-    await prisma.location.update({
+    await prisma.country.update({
       where: { id },
       data: {
         ...updateData,
@@ -121,16 +112,24 @@ export async function updateLocation(prevState: any, formData: FormData) {
         },
       },
     });
+
     revalidatePath("/dashboard/resources");
-    return { success: true, message: "Location updated" };
+    return { success: true, message: "Country updated" };
   } catch (e) {
     return { error: "Update failed" };
   }
 }
 
-export async function deleteLocationImage(imageId: string) {
+// 👇 NEW: Delete single gallery image
+export async function deleteCountryImage(imageId: string) {
   try {
-    await prisma.locationImage.delete({ where: { id: imageId } });
+    const img = await prisma.countryImage.findUnique({
+      where: { id: imageId },
+    });
+    if (img?.url.startsWith("/uploads/")) {
+      // Optional: Delete local file logic here
+    }
+    await prisma.countryImage.delete({ where: { id: imageId } });
     revalidatePath("/dashboard/resources");
     return { success: true };
   } catch (e) {
@@ -138,12 +137,12 @@ export async function deleteLocationImage(imageId: string) {
   }
 }
 
-export async function deleteLocation(id: string) {
+export async function deleteCountry(id: string) {
   try {
-    await prisma.location.delete({ where: { id } });
+    await prisma.country.delete({ where: { id } });
     revalidatePath("/dashboard/resources");
-    return { success: true, message: "Location deleted" };
+    return { success: true, message: "Country deleted" };
   } catch (e) {
-    return { error: "Cannot delete. Hotels/Activities might be linked." };
+    return { error: "Cannot delete. Locations linked." };
   }
 }

@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -155,36 +153,76 @@ model PaymentTransaction {
 // 4. RESOURCE LIBRARY (LOCATIONS & ASSETS)
 // =========================================
 
-model Location {
-  id          String  @id @default(cuid())
-  name        String  @unique // e.g. "Kathmandu", "Pokhara"
-  altitude    Int? // e.g. 1400
-  description String? // e.g. "City of Temples"
-  imageUrl    String? @db.Text // 👈 Added for visual dashboard
-  country     String   @default("Nepal")
-  // Relations
-  hotels     Hotel[]
-  activities Activity[]
-
-  createdAt DateTime @default(now())
+// --- COUNTRY ---
+model Country {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?        @db.Text
+  imageUrl    String?        @db.Text // Main Cover Image
+  images      CountryImage[] // Gallery
+  locations   Location[]
 }
 
+model CountryImage {
+  id        String  @id @default(cuid())
+  url       String  @db.Text
+  countryId String
+  country   Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+}
+
+// --- LOCATION ---
+model Location {
+  id        String  @id @default(cuid())
+  name      String  @unique // Unique identifier
+  countryId String
+  country   Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
+
+  description String? @db.Text
+  altitude    Int? // e.g. 1400 (meters)
+
+  type String @default("DESTINATION") // "DESTINATION" or "STOPOVER"
+
+  imageUrl String?         @db.Text
+  images   LocationImage[] // Gallery relation
+
+  hotels      Hotel[]
+  activities  Activity[]
+  restaurants Restaurant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LocationImage {
+  id         String   @id @default(cuid())
+  url        String   @db.Text
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+}
+
+// --- HOTEL ---
 model Hotel {
   id   String @id @default(cuid())
   name String
 
-  // Link to Location
   locationId String
   location   Location @relation(fields: [locationId], references: [id])
 
   contactInfo String?
-  imageUrl    String? @db.Text // 👈 Added
+  imageUrl    String?      @db.Text
+  images      HotelImage[]
 
-  // Pricing & Usage
   rates         HotelRoomRate[]
   itineraryDays ItineraryDay[]
 
   createdAt DateTime @default(now())
+}
+
+model HotelImage {
+  id      String @id @default(cuid())
+  url     String @db.Text
+  hotelId String
+  hotel   Hotel  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
 }
 
 model HotelRoomRate {
@@ -194,12 +232,15 @@ model HotelRoomRate {
 
   roomType   String // "Standard", "Deluxe"
   mealPlan   String // "EP", "BB", "MAP"
-  inclusions String? @db.Text // "2 Eggs, Toast"
+  inclusions String? @db.Text
 
-  costPrice Decimal @db.Decimal(10, 2)
-  currency  String  @default("NPR")
+  // PRICING (Profit Margin Model)
+  costPrice  Decimal @default(0.00) @db.Decimal(10, 2) // Net Rate (Pay to Vendor)
+  salesPrice Decimal @default(0.00) @db.Decimal(10, 2) // Gross Rate (Charge to Client)
+  currency   String  @default("NPR")
 }
 
+// --- VEHICLE ---
 model Vehicle {
   id            String  @id @default(cuid())
   name          String // "Toyota Scorpio"
@@ -207,31 +248,112 @@ model Vehicle {
   plateNumber   String?
   driverName    String?
   contactNumber String?
-  imageUrl      String? @db.Text // 👈 Added
 
-  // Pricing Logic
-  ratePerDay      Decimal @default(0.00) @db.Decimal(10, 2)
-  ratePerKm       Decimal @default(0.00) @db.Decimal(10, 2)
+  imageUrl String?        @db.Text
+  images   VehicleImage[]
+  details  String?        @db.Text
+
+  // PRICING (Profit Margin Model)
+  // 1. Daily Rates
+  costPerDay  Decimal @default(0.00) @db.Decimal(10, 2)
+  salesPerDay Decimal @default(0.00) @db.Decimal(10, 2)
+
+  // 2. Kilometer Rates
+  costPerKm  Decimal @default(0.00) @db.Decimal(10, 2)
+  salesPerKm Decimal @default(0.00) @db.Decimal(10, 2)
+
+  // 3. Driver Allowance (Usually pass-through cost)
   driverAllowance Decimal @default(0.00) @db.Decimal(10, 2)
-  currency        String  @default("NPR")
+
+  currency String @default("NPR")
 
   itineraryDays ItineraryDay[]
 }
 
+model VehicleImage {
+  id        String  @id @default(cuid())
+  url       String  @db.Text
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+// --- ACTIVITY ---
 model Activity {
   id   String @id @default(cuid())
   name String
 
-  // Link to Location
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id])
 
-  imageUrl String? @db.Text // 👈 Added
+  details  String?         @db.Text
+  imageUrl String?         @db.Text
+  images   ActivityImage[]
 
-  costPerHead Decimal @default(0.00) @db.Decimal(10, 2)
-  currency    String  @default("NPR")
+  // PRICING (Profit Margin Model)
+  costPrice  Decimal @default(0.00) @db.Decimal(10, 2) // Net Rate
+  salesPrice Decimal @default(0.00) @db.Decimal(10, 2) // Gross Rate
+  currency   String  @default("NPR")
 
   itineraryDays ItineraryDay[]
+}
+
+model ActivityImage {
+  id         String   @id @default(cuid())
+  url        String   @db.Text
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+}
+
+// --- STAFF & GUIDES ---
+model Staff {
+  id          String  @id @default(cuid())
+  name        String
+  role        String // e.g. "Senior Guide", "Driver"
+  languages   String?
+  contactInfo String?
+
+  // PRICING
+  dailySalary Decimal @default(0.00) @db.Decimal(10, 2)
+  currency    String  @default("NPR")
+
+  details  String?      @db.Text
+  imageUrl String?      @db.Text
+  images   StaffImage[]
+}
+
+model StaffImage {
+  id      String @id @default(cuid())
+  url     String @db.Text
+  staffId String
+  staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+}
+
+// --- RESTAURANTS ---
+model Restaurant {
+  id   String @id @default(cuid())
+  name String
+
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id])
+
+  cuisine     String? // e.g. "Thakali, Continental"
+  contactInfo String?
+
+  // PRICING (Profit Margin Model)
+  costPrice  Decimal @default(0.00) @db.Decimal(10, 2) // Net Meal Cost
+  salesPrice Decimal @default(0.00) @db.Decimal(10, 2) // Gross Meal Price
+  currency   String  @default("NPR")
+
+  details  String?           @db.Text
+  imageUrl String?           @db.Text
+  images   RestaurantImage[]
+}
+
+model RestaurantImage {
+  id           String     @id @default(cuid())
+  url          String     @db.Text
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 }
 
 // =========================================
@@ -244,7 +366,7 @@ model ItineraryDay {
   tour      Tour   @relation(fields: [tourId], references: [id], onDelete: Cascade)
   dayNumber Int
 
-  // Resource Links (Nullable because a day might not use all)
+  // Resource Links
   hotelId String?
   hotel   Hotel?  @relation(fields: [hotelId], references: [id])
 

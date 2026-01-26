@@ -9,11 +9,49 @@ import { hash } from "bcryptjs";
 import { prisma } from "../src/lib/db/prisma";
 
 async function main() {
-  console.log("🌱 Starting seed...");
+  console.log("🌱 Starting seed with Profit Margin & Location Type data...");
 
-  // 2. CREATE ADMIN USER
+  // =========================================
+  // 0. CLEANUP (Uncomment to reset DB in Dev)
+  // =========================================
+  // console.log('🧹 Cleaning up database...')
+  // await prisma.itineraryDay.deleteMany()
+  // await prisma.itinerary.deleteMany()
+  // await prisma.incidentLog.deleteMany()
+  // await prisma.paymentTransaction.deleteMany()
+  // await prisma.tourFinancials.deleteMany()
+  // await prisma.participantSummary.deleteMany()
+  // await prisma.tour.deleteMany()
+
+  // await prisma.hotelRoomRate.deleteMany()
+  // await prisma.hotelImage.deleteMany()
+  // await prisma.hotel.deleteMany()
+
+  // await prisma.vehicleImage.deleteMany()
+  // await prisma.vehicle.deleteMany()
+
+  // await prisma.activityImage.deleteMany()
+  // await prisma.activity.deleteMany()
+
+  // await prisma.restaurantImage.deleteMany()
+  // await prisma.restaurant.deleteMany()
+
+  // await prisma.staffImage.deleteMany()
+  // await prisma.staff.deleteMany()
+
+  // await prisma.locationImage.deleteMany()
+  // await prisma.location.deleteMany()
+
+  // await prisma.countryImage.deleteMany()
+  // await prisma.country.deleteMany()
+
+  // await prisma.user.deleteMany()
+
+  // =========================================
+  // 1. ADMIN USER
+  // =========================================
   const passwordHash = await hash("admin123", 12);
-  const admin = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: "admin@journai.com" },
     update: {},
     create: {
@@ -23,74 +61,184 @@ async function main() {
       role: "ADMIN",
     },
   });
-  console.log(`👤 Created Admin: ${admin.email}`);
+  console.log("👤 Admin Created");
 
-  // 3. CREATE LOCATIONS
+  // =========================================
+  // 2. COUNTRIES
+  // =========================================
+  const nepal = await prisma.country.upsert({
+    where: { name: "Nepal" },
+    update: {},
+    create: {
+      name: "Nepal",
+      description: "The land of Himalayas and Buddha.",
+      imageUrl: "https://images.unsplash.com/photo-1544735716-392fe2489ffa",
+      images: {
+        create: [
+          { url: "https://images.unsplash.com/photo-1544735716-392fe2489ffa" },
+        ],
+      },
+    },
+  });
+
+  const bhutan = await prisma.country.upsert({
+    where: { name: "Bhutan" },
+    update: {},
+    create: {
+      name: "Bhutan",
+      description: "The last Shangri-La.",
+      imageUrl: "https://images.unsplash.com/photo-1578509312291-d5907133dc0e",
+      images: {
+        create: [
+          {
+            url: "https://images.unsplash.com/photo-1578509312291-d5907133dc0e",
+          },
+        ],
+      },
+    },
+  });
+  console.log("🌏 Countries Created");
+
+  // =========================================
+  // 3. LOCATIONS (Destinations & Stopovers)
+  // =========================================
+
+  // Destination: Kathmandu
   const kathmandu = await prisma.location.upsert({
     where: { name: "Kathmandu" },
-    update: {},
+    update: { type: "DESTINATION" },
     create: {
       name: "Kathmandu",
+      countryId: nepal.id,
+      type: "DESTINATION",
       altitude: 1400,
-      description:
-        "Capital city known for its historic temples and vibrant culture.",
-      imageUrl:
-        "https://images.unsplash.com/photo-1544735716-392fe2489ffa?q=80&w=800",
+      description: "Capital city rich in history and temples.",
+      imageUrl: "https://images.unsplash.com/photo-1558693175-97a6e138a446",
+      images: {
+        create: [
+          {
+            url: "https://images.unsplash.com/photo-1518182170546-0766aa6f6914",
+          },
+        ],
+      },
     },
   });
 
+  // Destination: Pokhara
   const pokhara = await prisma.location.upsert({
     where: { name: "Pokhara" },
-    update: {},
+    update: { type: "DESTINATION" },
     create: {
       name: "Pokhara",
+      countryId: nepal.id,
+      type: "DESTINATION",
       altitude: 822,
-      description: "City of Lakes, gateway to the Annapurna Circuit.",
-      imageUrl:
-        "https://images.unsplash.com/photo-1625902347250-77a834164b38?q=80&w=800",
+      description: "City of lakes and gateway to Annapurna.",
+      imageUrl: "https://images.unsplash.com/photo-1540397106260-e24a59faf08f",
+      images: {
+        create: [
+          {
+            url: "https://images.unsplash.com/photo-1625902347250-77a834164b38",
+          },
+        ],
+      },
     },
   });
 
+  // Destination: Chitwan
   const chitwan = await prisma.location.upsert({
     where: { name: "Chitwan" },
-    update: {},
+    update: { type: "DESTINATION" },
     create: {
       name: "Chitwan",
+      countryId: nepal.id,
+      type: "DESTINATION",
       altitude: 415,
-      description: "Famous for Chitwan National Park and wildlife safaris.",
-      imageUrl:
-        "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?q=80&w=800",
+      description: "Famous for wildlife safaris and Tharu culture.",
+      imageUrl: "https://images.unsplash.com/photo-1544636331-e26879cd4d9b",
+      images: {
+        create: [
+          { url: "https://images.unsplash.com/photo-1544636331-e26879cd4d9b" },
+        ],
+      },
     },
   });
-  console.log("📍 Created Locations: Kathmandu, Pokhara, Chitwan");
 
-  // 4. CREATE HOTELS
+  // Highway Stop: Malekhu
+  const malekhu = await prisma.location.upsert({
+    where: { name: "Malekhu" },
+    update: { type: "STOPOVER" },
+    create: {
+      name: "Malekhu",
+      countryId: nepal.id,
+      type: "STOPOVER",
+      altitude: 400,
+      description: "Popular highway stop famous for local fish.",
+      imageUrl: "https://images.unsplash.com/photo-1605640840605-14ac1855827b",
+      images: {
+        create: [
+          {
+            url: "https://images.unsplash.com/photo-1605640840605-14ac1855827b",
+          },
+        ],
+      },
+    },
+  });
+
+  // Highway Stop: Mugling
+  const mugling = await prisma.location.upsert({
+    where: { name: "Mugling" },
+    update: { type: "STOPOVER" },
+    create: {
+      name: "Mugling",
+      countryId: nepal.id,
+      type: "STOPOVER",
+      altitude: 300,
+      description:
+        "Major transit junction connecting Kathmandu, Pokhara, and Chitwan.",
+      imageUrl: "https://images.unsplash.com/photo-1595259715208-143763266581",
+      images: {
+        create: [
+          {
+            url: "https://images.unsplash.com/photo-1595259715208-143763266581",
+          },
+        ],
+      },
+    },
+  });
+  console.log("📍 Locations Created");
+
+  // =========================================
+  // 4. HOTELS (With CP & SP)
+  // =========================================
   await prisma.hotel.create({
     data: {
       name: "Hotel Shanker",
       locationId: kathmandu.id,
       contactInfo: "01-4410151",
-      imageUrl:
-        "https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=800",
+      imageUrl: "https://images.unsplash.com/photo-1566073771259-6a8506099945",
+      images: {
+        create: [
+          {
+            url: "https://images.unsplash.com/photo-1566073771259-6a8506099945",
+          },
+        ],
+      },
       rates: {
         create: [
           {
             roomType: "Standard",
             mealPlan: "BB",
-            inclusions: "Buffet Breakfast",
-            costPrice: 4500,
+            costPrice: 8000,
+            salesPrice: 10000, // ~25% Markup
+            inclusions: "Buffet Breakfast, Wifi",
           },
           {
             roomType: "Deluxe",
             mealPlan: "BB",
-            inclusions: "Breakfast + Welcome Drink",
-            costPrice: 6500,
-          },
-          {
-            roomType: "Standard",
-            mealPlan: "MAP",
-            inclusions: "Breakfast + Dinner",
-            costPrice: 6000,
+            costPrice: 12000,
+            salesPrice: 15000,
+            inclusions: "City View, Bathtub",
           },
         ],
       },
@@ -102,106 +250,115 @@ async function main() {
       name: "Temple Tree Resort",
       locationId: pokhara.id,
       contactInfo: "061-460021",
-      imageUrl:
-        "https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=800",
+      imageUrl: "https://images.unsplash.com/photo-1582719508461-905c673771fd",
+      images: {
+        create: [
+          {
+            url: "https://images.unsplash.com/photo-1582719508461-905c673771fd",
+          },
+        ],
+      },
       rates: {
         create: [
           {
             roomType: "Standard",
             mealPlan: "BB",
-            inclusions: "Breakfast",
-            costPrice: 8000,
+            costPrice: 9000,
+            salesPrice: 11500,
+            inclusions: "Welcome Drink, Breakfast",
           },
           {
-            roomType: "Deluxe",
-            mealPlan: "BB",
-            inclusions: "Breakfast, Lake View",
-            costPrice: 10000,
+            roomType: "Suite",
+            mealPlan: "MAP",
+            costPrice: 16000,
+            salesPrice: 20000,
+            inclusions: "Breakfast + Dinner",
           },
         ],
       },
     },
   });
+  console.log("🏨 Hotels Created");
 
-  await prisma.hotel.create({
+  // =========================================
+  // 5. VEHICLES (With CP & SP)
+  // =========================================
+  await prisma.vehicle.create({
     data: {
-      name: "Green Park Chitwan",
-      locationId: chitwan.id,
-      contactInfo: "056-580123",
-      imageUrl:
-        "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?q=80&w=800",
-      rates: {
+      name: "Mahindra Scorpio",
+      type: "SUV",
+      plateNumber: "Ba 12 Cha 3456",
+      driverName: "Ram Bahadur",
+      contactNumber: "9851011111",
+
+      // Profit Margin Rates
+      costPerDay: 5000,
+      salesPerDay: 6500,
+
+      costPerKm: 25,
+      salesPerKm: 35,
+
+      driverAllowance: 1500, // Usually flat cost
+
+      details: "4WD SUV with AC. Good for rough terrain like Mustang.",
+      imageUrl: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf",
+      images: {
         create: [
           {
-            roomType: "Standard",
-            mealPlan: "AP",
-            inclusions: "Breakfast, Lunch, Dinner",
-            costPrice: 5000,
+            url: "https://images.unsplash.com/photo-1605218427306-635ba2439af2",
           },
         ],
       },
     },
   });
-  console.log("🏨 Created Hotels with Rates");
 
-  // 5. CREATE VEHICLES
-  await prisma.vehicle.createMany({
-    data: [
-      {
-        name: "Mahindra Scorpio",
-        type: "SUV",
-        plateNumber: "Ba 12 Cha 1234",
-        driverName: "Ram Bahadur",
-        ratePerDay: 4500,
-        ratePerKm: 25,
-        driverAllowance: 1000,
-        imageUrl:
-          "https://images.unsplash.com/photo-1605218427306-635ba2439af2?q=80&w=800",
+  await prisma.vehicle.create({
+    data: {
+      name: "Toyota Coaster",
+      type: "Bus",
+      plateNumber: "Ba 5 Kha 9988",
+      driverName: "Shyam Kumar",
+      contactNumber: "9841222222",
+
+      costPerDay: 12000,
+      salesPerDay: 15000,
+
+      costPerKm: 45,
+      salesPerKm: 60,
+
+      driverAllowance: 2000,
+
+      details: "22 Seater with AC. Spacious legroom for groups.",
+      imageUrl: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957",
+      images: {
+        create: [
+          { url: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957" },
+        ],
       },
-      {
-        name: "Toyota Hiace",
-        type: "Van",
-        plateNumber: "Ba 3 Kha 9876",
-        driverName: "Shyam Krishna",
-        ratePerDay: 6500,
-        ratePerKm: 35,
-        driverAllowance: 1200,
-        imageUrl:
-          "https://images.unsplash.com/photo-1559416523-140ddc3d238c?q=80&w=800",
-      },
-      {
-        name: "Sutlej Bus (AC)",
-        type: "Bus",
-        plateNumber: "Na 4 Kha 5555",
-        driverName: "Hari Prasad",
-        ratePerDay: 12000,
-        ratePerKm: 50,
-        driverAllowance: 1500,
-        imageUrl:
-          "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?q=80&w=800",
-      },
-    ],
+    },
   });
-  console.log("🚙 Created Vehicles");
+  console.log("🚙 Vehicles Created");
 
-  // 6. CREATE ACTIVITIES
+  // =========================================
+  // 6. ACTIVITIES (With CP & SP)
+  // =========================================
   await prisma.activity.create({
     data: {
       name: "Paragliding",
       locationId: pokhara.id,
-      costPerHead: 8000,
-      imageUrl:
-        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=800",
-    },
-  });
 
-  await prisma.activity.create({
-    data: {
-      name: "Boating on Phewa Lake",
-      locationId: pokhara.id,
-      costPerHead: 500,
-      imageUrl:
-        "https://images.unsplash.com/photo-1542662565-7e4b66bae529?q=80&w=800",
+      costPrice: 6000, // Net Rate
+      salesPrice: 8500, // Selling Rate
+
+      details: "30 min tandem flight from Sarangkot. Includes photos/video.",
+      imageUrl: "https://images.unsplash.com/photo-1476610182048-b716b8518aae",
+      images: {
+        create: [
+          {
+            url: "https://images.unsplash.com/photo-1516938923055-66795f543168",
+          },
+        ],
+      },
     },
   });
 
@@ -209,14 +366,101 @@ async function main() {
     data: {
       name: "Jungle Safari (Jeep)",
       locationId: chitwan.id,
-      costPerHead: 2500,
-      imageUrl:
-        "https://images.unsplash.com/photo-1549366021-9f761d450615?q=80&w=800",
+
+      costPrice: 2000,
+      salesPrice: 3000,
+
+      details: "4-hour jeep drive inside Chitwan National Park to spot Rhinos.",
+      imageUrl: "https://images.unsplash.com/photo-1535338454770-8be927b5a00b",
+      images: {
+        create: [
+          {
+            url: "https://images.unsplash.com/photo-1579782260685-6d0e816c729e",
+          },
+        ],
+      },
     },
   });
-  console.log("🏄 Created Activities");
+  console.log("🏄 Activities Created");
 
-  console.log("✅ Seed completed successfully.");
+  // =========================================
+  // 7. RESTAURANTS (With CP & SP)
+  // =========================================
+  await prisma.restaurant.create({
+    data: {
+      name: "Blue Heaven Restaurant",
+      locationId: malekhu.id, // Linked to STOPOVER Location
+      cuisine: "Nepali, Fish",
+      contactInfo: "010-123456",
+
+      costPrice: 500, // Net Cost per Thali
+      salesPrice: 700, // Charged to Client
+
+      details: "Famous for local river fish curry and rice.",
+      imageUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4",
+      images: {
+        create: [
+          { url: "https://images.unsplash.com/photo-1559339352-11d035aa65de" },
+        ],
+      },
+    },
+  });
+
+  await prisma.restaurant.create({
+    data: {
+      name: "Roadhouse Cafe",
+      locationId: kathmandu.id,
+      cuisine: "Italian, Continental",
+      contactInfo: "01-441000",
+
+      costPrice: 1200,
+      salesPrice: 1500,
+
+      details: "Wood-fired pizza and coffee in a garden setting.",
+      imageUrl: "https://images.unsplash.com/photo-1559339352-11d035aa65de",
+      images: {
+        create: [
+          { url: "https://images.unsplash.com/photo-1559339352-11d035aa65de" },
+        ],
+      },
+    },
+  });
+  console.log("🍽️ Restaurants Created");
+
+  // =========================================
+  // 8. STAFF
+  // =========================================
+  await prisma.staff.create({
+    data: {
+      name: "Pasang Sherpa",
+      role: "Senior Guide",
+      languages: "English, French, Nepali",
+      contactInfo: "9800000001",
+      dailySalary: 3500, // Cost to company
+      details: "Government license holder with 15 years experience.",
+      imageUrl: "https://images.unsplash.com/photo-1627434579633-99b80b7c4133",
+      images: {
+        create: [
+          { url: "https://images.unsplash.com/photo-1551632811-561732d1e306" },
+        ],
+      },
+    },
+  });
+
+  await prisma.staff.create({
+    data: {
+      name: "Hari Thapa",
+      role: "Driver",
+      languages: "Nepali, Hindi",
+      contactInfo: "9800000002",
+      dailySalary: 1500,
+      details: "Expert off-road driver.",
+      imageUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d",
+    },
+  });
+  console.log("🧑‍✈️ Staff Created");
+
+  console.log("✅ Seed completed successfully!");
 }
 
 main()

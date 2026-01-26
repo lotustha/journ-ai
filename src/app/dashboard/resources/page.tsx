@@ -6,7 +6,6 @@ import { ResourceManager } from "@/components/resources/ResourceManager";
 export default async function ResourcesPage() {
   const session = await auth();
 
-  // Protect Route
   if (
     !session ||
     (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")
@@ -14,36 +13,102 @@ export default async function ResourcesPage() {
     redirect("/dashboard");
   }
 
-  // 1. Fetch ALL data (Including Locations)
-  const [rawHotels, rawVehicles, rawActivities, locations] = await Promise.all([
+  // Fetch ALL Data
+  const [
+    rawHotels,
+    rawVehicles,
+    rawActivities,
+    locations,
+    countries,
+    staff,
+    restaurants,
+  ] = await Promise.all([
+    // 1. HOTELS
     prisma.hotel.findMany({
       orderBy: { name: "asc" },
-      include: { rates: true, location: true },
+      include: { rates: true, location: true, images: true },
     }),
-    prisma.vehicle.findMany({ orderBy: { name: "asc" } }),
+
+    // 2. VEHICLES
+    prisma.vehicle.findMany({
+      orderBy: { name: "asc" },
+      include: { images: true },
+    }),
+
+    // 3. ACTIVITIES
     prisma.activity.findMany({
       orderBy: { name: "asc" },
-      include: { location: true },
+      include: { location: true, images: true },
     }),
-    prisma.location.findMany({ orderBy: { name: "asc" } }), // 👈 Fetching Locations
+
+    // 4. LOCATIONS
+    prisma.location.findMany({
+      orderBy: { name: "asc" },
+      include: { country: true, images: true },
+    }),
+
+    // 5. COUNTRIES
+    prisma.country.findMany({
+      orderBy: { name: "asc" },
+      include: { images: true },
+    }),
+
+    // 6. STAFF
+    prisma.staff.findMany({
+      orderBy: { name: "asc" },
+      include: { images: true },
+    }),
+
+    // 7. RESTAURANTS
+    prisma.restaurant.findMany({
+      orderBy: { name: "asc" },
+      include: { location: true, images: true },
+    }),
   ]);
 
-  // 2. Serialize Data (Convert Decimals to Numbers for Client)
+  // --- DATA SERIALIZATION (Decimal -> Number) ---
+
   const hotels = rawHotels.map((h) => ({
     ...h,
-    rates: h.rates.map((r) => ({ ...r, costPrice: r.costPrice.toNumber() })),
+    rates: h.rates.map((r) => ({
+      ...r,
+      costPrice: Number(r.costPrice),
+      salesPrice: Number(r.salesPrice), // 👈 Updated
+    })),
   }));
 
   const vehicles = rawVehicles.map((v) => ({
     ...v,
-    ratePerDay: v.ratePerDay.toNumber(),
-    ratePerKm: v.ratePerKm.toNumber(),
-    driverAllowance: v.driverAllowance.toNumber(),
+    // 👈 UPDATED: New Profit Margin Fields
+    costPerDay: Number(v.costPerDay),
+    salesPerDay: Number(v.salesPerDay),
+    costPerKm: Number(v.costPerKm),
+    salesPerKm: Number(v.salesPerKm),
+    driverAllowance: Number(v.driverAllowance),
   }));
 
   const activities = rawActivities.map((a) => ({
     ...a,
-    costPerHead: a.costPerHead.toNumber(),
+    // 👈 UPDATED: New Profit Margin Fields
+    costPrice: Number(a.costPrice),
+    salesPrice: Number(a.salesPrice),
+  }));
+
+  const safeLocations = locations.map((l) => ({
+    ...l,
+    altitude: l.altitude ? Number(l.altitude) : null,
+  }));
+
+  const safeStaff = staff.map((s) => ({
+    ...s,
+    dailySalary: Number(s.dailySalary),
+  }));
+
+  const safeRestaurants = restaurants.map((r) => ({
+    ...r,
+    // 👈 UPDATED: New Profit Margin Fields
+    costPrice: Number(r.costPrice),
+    salesPrice: Number(r.salesPrice),
   }));
 
   return (
@@ -53,7 +118,8 @@ export default async function ResourcesPage() {
           Resource Management
         </h1>
         <p className="text-base-content/60">
-          Manage your locations, hotels, vehicles, and activities.
+          Manage your travel inventory: locations, hotels, vehicles, activities,
+          staff, and dining.
         </p>
       </div>
 
@@ -61,7 +127,10 @@ export default async function ResourcesPage() {
         hotels={hotels}
         vehicles={vehicles}
         activities={activities}
-        locations={locations} // 👈 Passing Locations to Client
+        locations={safeLocations}
+        countries={countries}
+        staff={safeStaff}
+        restaurants={safeRestaurants}
       />
     </div>
   );

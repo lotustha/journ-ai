@@ -1,243 +1,659 @@
-'use client'
+"use client";
 
-import { useState, useMemo } from "react"
+import { useState, useMemo } from "react";
 import {
-    Plus, Pencil, Trash2, Search, Car, User, Phone,
-    Calendar, Gauge, Wallet, Save, X, Hash
-} from "lucide-react"
-import { createVehicle, updateVehicle, deleteResource } from "@/actions/resources"
-import { ImageUpload } from "@/components/ui/ImageUpload"
-import { toast } from "sonner"
-import { formatCurrency } from "@/lib/format"
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  Car,
+  X,
+  Save,
+  User,
+  Phone,
+  Coins,
+  Camera,
+  ZoomIn,
+  AlignLeft,
+  Bold,
+  Italic,
+  Underline,
+  List,
+  ListOrdered,
+  Link as LinkIcon,
+  Quote,
+} from "lucide-react";
+import {
+  createVehicle,
+  updateVehicle,
+  deleteResource,
+  deleteResourceImage,
+} from "@/actions/resources";
+import { ImageUpload } from "@/components/ui/ImageUpload";
+import { MultiImageUpload } from "@/components/ui/MultiImageUpload";
+import { ImageCarousel } from "@/components/ui/ImageCarousel";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { toast } from "sonner";
+import { formatCurrency } from "@/lib/format";
 
-const VEHICLE_TYPES = ["SUV (Scorpio/Jeep)", "Car (Sedan)", "Van (Hiace)", "Bus (Sutlej)", "Coaster", "4WD"]
+interface VehicleManagerProps {
+  initialData: any[];
+}
 
-export function VehicleManager({ initialData }: { initialData: any[] }) {
-    const [isModalOpen, setIsModalOpen] = useState(false)
-    const [editingItem, setEditingItem] = useState<any>(null)
+export function VehicleManager({ initialData }: VehicleManagerProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewingItem, setViewingItem] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
 
-    // --- SEARCH & FILTER ---
-    const [searchQuery, setSearchQuery] = useState("")
-    const [selectedType, setSelectedType] = useState("All")
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-    const filteredData = useMemo(() => {
-        return initialData.filter(v => {
-            const matchesSearch = v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                v.driverName?.toLowerCase().includes(searchQuery.toLowerCase())
-            const matchesType = selectedType === "All" || v.type === selectedType
-            return matchesSearch && matchesType
-        })
-    }, [initialData, searchQuery, selectedType])
+  // --- FILTER ---
+  const filteredVehicles = useMemo(() => {
+    return initialData.filter(
+      (v) =>
+        v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        v.driverName?.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [initialData, searchQuery]);
 
-    // --- HANDLERS ---
-    function handleEdit(item: any) { setEditingItem(item); setIsModalOpen(true) }
-    function handleCreate() { setEditingItem(null); setIsModalOpen(true) }
+  // --- HANDLERS ---
+  function handleCreate() {
+    setEditingItem(null);
+    setIsModalOpen(true);
+  }
 
-    async function handleDelete(id: string) {
-        if (!confirm("Delete this vehicle?")) return
-        const result = await deleteResource(id, 'vehicle')
-        if (result?.success) toast.success("Vehicle deleted")
-        else toast.error(result?.error)
+  function handleEdit(item: any, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    setEditingItem(item);
+    setIsModalOpen(true);
+  }
+
+  function handleDeleteRequest(id: string, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    setItemToDelete(id);
+  }
+
+  async function confirmDelete() {
+    if (!itemToDelete) return;
+    const result = await deleteResource(itemToDelete, "vehicle");
+    if (result?.success) toast.success("Vehicle deleted");
+    else toast.error(result?.error);
+    setItemToDelete(null);
+  }
+
+  async function handleDeleteGalleryImage(imageId: string) {
+    const result = await deleteResourceImage(imageId, "vehicle");
+    if (result.success) {
+      toast.success("Image removed");
+      setEditingItem((prev: any) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          images: prev.images
+            ? prev.images.filter((img: any) => img.id !== imageId)
+            : [],
+        };
+      });
+    } else {
+      toast.error("Failed to delete image");
     }
+  }
 
-    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault()
-        const formData = new FormData(e.currentTarget)
-        if (editingItem) formData.append('id', editingItem.id)
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    if (editingItem) formData.append("id", editingItem.id);
 
-        const action = editingItem ? updateVehicle : createVehicle
-        const result = await action(null, formData)
+    const action = editingItem ? updateVehicle : createVehicle;
+    const result = await action(null, formData);
 
-        if (result?.success) {
-            toast.success(result.message)
-            setIsModalOpen(false)
-        } else {
-            toast.error(result?.error || "Error saving vehicle")
-        }
+    if (result?.success) {
+      toast.success(result.message);
+      setIsModalOpen(false);
+    } else {
+      toast.error(result?.error || "Error saving vehicle");
     }
+  }
 
-    return (
-        <div className="space-y-6">
+  // Visual Toolbar for Editor
+  const ToolbarBtn = ({ icon: Icon }: { icon: any }) => (
+    <button
+      type="button"
+      className="p-1.5 text-base-content/50 hover:text-primary hover:bg-base-200 rounded transition-colors"
+    >
+      <Icon size={14} strokeWidth={2.5} />
+    </button>
+  );
 
-            {/* 1. TOOLBAR */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-base-100 p-4 rounded-xl border border-base-200 shadow-sm">
-                <div className="relative w-full md:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" size={16} />
-                    <input
-                        type="text"
-                        placeholder="Search vehicles..."
-                        className="input input-bordered input-sm w-full pl-9"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
-                <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
-                    <select
-                        className="select select-bordered select-sm"
-                        value={selectedType}
-                        onChange={(e) => setSelectedType(e.target.value)}
-                    >
-                        <option value="All">All Types</option>
-                        {VEHICLE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                    <button onClick={handleCreate} className="btn btn-primary btn-sm gap-2 whitespace-nowrap">
-                        <Plus size={16} /> Add Vehicle
-                    </button>
-                </div>
-            </div>
-
-            {/* 2. GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredData.map((v: any) => (
-                    <div key={v.id} className="card bg-base-100 border border-base-200 shadow-sm hover:shadow-xl transition-all group overflow-hidden">
-
-                        {/* Header Image */}
-                        <div className="h-40 w-full bg-base-200 relative">
-                            {v.imageUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={v.imageUrl} alt={v.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-base-content/10"><Car size={48} /></div>
-                            )}
-                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => handleEdit(v)} className="btn btn-xs btn-circle btn-ghost bg-base-100 shadow text-primary"><Pencil size={12} /></button>
-                                <button onClick={() => handleDelete(v.id)} className="btn btn-xs btn-circle btn-ghost bg-base-100 shadow text-error"><Trash2 size={12} /></button>
-                            </div>
-                            <div className="absolute bottom-2 left-2 badge badge-sm bg-base-100/90 backdrop-blur border-0 text-xs font-semibold">
-                                {v.type}
-                            </div>
-                        </div>
-
-                        <div className="p-4">
-                            <div className="flex justify-between items-start mb-3">
-                                <div>
-                                    <h3 className="font-bold leading-tight">{v.name}</h3>
-                                    {v.driverName && (
-                                        <div className="flex flex-col mt-1 text-xs text-base-content/60 gap-0.5">
-                                            <div className="flex items-center gap-1"><User size={10} /> {v.driverName} <span className="opacity-50">({v.plateNumber})</span></div>
-                                            {v.contactNumber && <div className="flex items-center gap-1"><Phone size={10} /> {v.contactNumber}</div>}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* 3-Col Pricing */}
-                            <div className="grid grid-cols-3 gap-2 text-center border-t border-base-200 pt-3 bg-base-200/30 rounded-lg p-2">
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] uppercase font-bold text-base-content/40 mb-1">Day</span>
-                                    <span className="font-mono text-xs font-bold text-primary">{formatCurrency(v.ratePerDay, v.currency).replace('.00', '')}</span>
-                                </div>
-                                <div className="flex flex-col border-l border-base-200/50">
-                                    <span className="text-[9px] uppercase font-bold text-base-content/40 mb-1">Km</span>
-                                    <span className="font-mono text-xs font-bold text-primary">{formatCurrency(v.ratePerKm, v.currency).replace('.00', '')}</span>
-                                </div>
-                                <div className="flex flex-col border-l border-base-200/50">
-                                    <span className="text-[9px] uppercase font-bold text-base-content/40 mb-1">Allowance</span>
-                                    <span className="font-mono text-xs font-bold text-primary">{formatCurrency(v.driverAllowance, v.currency).replace('.00', '')}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-                {filteredData.length === 0 && <div className="col-span-full text-center py-10 opacity-50">No vehicles found.</div>}
-            </div>
-
-            {/* 3. MODAL */}
-            {isModalOpen && (
-                <dialog className="modal modal-open backdrop-blur-sm">
-                    <div className="modal-box w-11/12 max-w-4xl p-0 overflow-hidden bg-base-100 shadow-2xl">
-                        <div className="px-6 py-4 border-b border-base-200 flex justify-between items-center bg-base-100">
-                            <h3 className="font-bold text-lg">{editingItem ? 'Edit Vehicle' : 'Add Vehicle'}</h3>
-                            <button onClick={() => setIsModalOpen(false)} className="btn btn-sm btn-circle btn-ghost"><X size={18} /></button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="flex flex-col md:flex-row">
-
-                            {/* LEFT: DETAILS */}
-                            <div className="md:w-1/3 bg-base-200/50 p-6 space-y-4 border-r border-base-200">
-                                <div className="text-xs font-bold text-base-content/40 uppercase tracking-wider">Vehicle Info</div>
-
-                                <div className="form-control w-full">
-                                    <label className="label label-text text-xs font-bold">Image</label>
-                                    <ImageUpload name="image" defaultValue={editingItem?.imageUrl} />
-                                </div>
-
-                                <div className="form-control w-full">
-                                    <label className="label label-text text-xs font-bold">Name <span className="text-error">*</span></label>
-                                    <div className="relative"><Car size={14} className="absolute left-3 top-3 opacity-40" /><input name="name" defaultValue={editingItem?.name} className="input input-bordered input-sm w-full pl-9" required placeholder="e.g. Green Scorpio" /></div>
-                                </div>
-
-                                <div className="form-control w-full">
-                                    <label className="label label-text text-xs font-bold">Type</label>
-                                    <select name="type" defaultValue={editingItem?.type} className="select select-bordered select-sm w-full">
-                                        {VEHICLE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="form-control">
-                                        <label className="label label-text text-xs font-bold">Plate #</label>
-                                        <div className="relative"><Hash size={14} className="absolute left-3 top-3 opacity-40" /><input name="plateNumber" defaultValue={editingItem?.plateNumber} className="input input-bordered input-sm w-full pl-9" placeholder="BA 2 KHA..." /></div>
-                                    </div>
-                                    <div className="form-control">
-                                        <label className="label label-text text-xs font-bold">Driver Name</label>
-                                        <div className="relative"><User size={14} className="absolute left-3 top-3 opacity-40" /><input name="driverName" defaultValue={editingItem?.driverName} className="input input-bordered input-sm w-full pl-9" /></div>
-                                    </div>
-                                </div>
-
-                                <div className="form-control w-full">
-                                    <label className="label label-text text-xs font-bold">Driver Phone</label>
-                                    <div className="relative"><Phone size={14} className="absolute left-3 top-3 opacity-40" /><input name="contactNumber" defaultValue={editingItem?.contactNumber} className="input input-bordered input-sm w-full pl-9" placeholder="98XXXXXXXX" /></div>
-                                </div>
-                            </div>
-
-                            {/* RIGHT: PRICING */}
-                            <div className="md:w-2/3 p-6 flex flex-col justify-between">
-                                <div>
-                                    <div className="text-xs font-bold text-base-content/40 uppercase tracking-wider mb-6">Pricing Configuration</div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="form-control p-4 border border-base-200 rounded-xl bg-base-100">
-                                            <label className="label text-xs font-bold flex items-center gap-2"><Calendar size={14} className="text-primary" /> Day Rate</label>
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-mono text-sm text-base-content/40">NPR</span>
-                                                <input name="ratePerDay" defaultValue={editingItem?.ratePerDay} type="number" className="input input-ghost text-xl font-bold w-full p-0 focus:bg-transparent" placeholder="0" />
-                                            </div>
-                                        </div>
-
-                                        <div className="form-control p-4 border border-base-200 rounded-xl bg-base-100">
-                                            <label className="label text-xs font-bold flex items-center gap-2"><Gauge size={14} className="text-secondary" /> Per Km Rate</label>
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-mono text-sm text-base-content/40">NPR</span>
-                                                <input name="ratePerKm" defaultValue={editingItem?.ratePerKm} type="number" className="input input-ghost text-xl font-bold w-full p-0 focus:bg-transparent" placeholder="0" />
-                                            </div>
-                                        </div>
-
-                                        <div className="form-control p-4 border border-base-200 rounded-xl bg-base-100 col-span-full md:col-span-2">
-                                            <label className="label text-xs font-bold flex items-center gap-2"><Wallet size={14} className="text-accent" /> Driver Allowance (Per Night)</label>
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-mono text-sm text-base-content/40">NPR</span>
-                                                <input name="driverAllowance" defaultValue={editingItem?.driverAllowance} type="number" className="input input-ghost text-xl font-bold w-full p-0 focus:bg-transparent" placeholder="0" />
-                                            </div>
-                                            <p className="text-[10px] text-base-content/40 mt-1 pl-1">Usually added when the vehicle stays overnight outside base.</p>
-                                        </div>
-                                    </div>
-
-                                    <input type="hidden" name="currency" value="NPR" />
-                                </div>
-
-                                <div className="modal-action border-t border-base-200 pt-4 mt-6">
-                                    <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-ghost">Cancel</button>
-                                    <button type="submit" className="btn btn-primary px-8 gap-2">
-                                        <Save size={16} /> Save Vehicle
-                                    </button>
-                                </div>
-                            </div>
-
-                        </form>
-                    </div>
-                </dialog>
-            )}
+  return (
+    <div className="space-y-8">
+      {/* TOOLBAR */}
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-base-100 p-4 rounded-xl border border-base-200 shadow-sm">
+        <div className="relative w-full md:w-72">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40"
+            size={16}
+          />
+          <input
+            type="text"
+            placeholder="Search vehicles..."
+            className="input input-sm h-10 w-full pl-10 bg-base-50 border-base-300 focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-lg transition-all"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-    )
+        <button
+          onClick={handleCreate}
+          className="btn btn-primary btn-sm h-10 px-6 gap-2 rounded-lg shadow-primary/20 shadow-lg"
+        >
+          <Plus size={18} /> Add Vehicle
+        </button>
+      </div>
+
+      {/* GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
+        {filteredVehicles.map((vehicle: any) => {
+          const carouselImages = [
+            vehicle.imageUrl,
+            ...(vehicle.images?.map((i: any) => i.url) || []),
+          ].filter(Boolean);
+          return (
+            <div
+              key={vehicle.id}
+              onClick={() => setViewingItem(vehicle)}
+              className="card bg-base-100 border border-base-200 shadow-sm hover:shadow-xl hover:border-primary/20 transition-all group overflow-hidden cursor-pointer"
+            >
+              <div className="relative h-48">
+                <ImageCarousel
+                  images={carouselImages}
+                  alt={vehicle.name}
+                  aspectRatio="h-full"
+                />
+
+                <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md text-base-content text-[10px] font-bold px-2 py-1 rounded-md shadow-sm uppercase tracking-wider">
+                  {vehicle.type}
+                </div>
+
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                  <button
+                    onClick={(e) => handleEdit(vehicle, e)}
+                    className="btn btn-xs btn-square bg-white text-base-content shadow-md border-none hover:bg-primary hover:text-white"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteRequest(vehicle.id, e)}
+                    className="btn btn-xs btn-square bg-white text-error shadow-md border-none hover:bg-error hover:text-white"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4">
+                <div className="flex justify-between items-start mb-1">
+                  <h3 className="font-bold truncate text-base text-base-content/90">
+                    {vehicle.name}
+                  </h3>
+                  <span className="text-xs font-mono bg-base-200 px-1.5 py-0.5 rounded text-base-content/70">
+                    {vehicle.plateNumber || "N/A"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-base-content/60 mb-3">
+                  <User size={12} /> {vehicle.driverName || "Unassigned"}
+                </div>
+
+                {/* Grid showing Sales Price */}
+                <div className="grid grid-cols-2 gap-2 text-[10px] bg-base-50 p-2 rounded-lg border border-base-200">
+                  <div>
+                    <span className="block opacity-50">Day (Sell)</span>
+                    <span className="font-bold text-success">
+                      {formatCurrency(vehicle.salesPerDay)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block opacity-50">Km (Sell)</span>
+                    <span className="font-bold text-success">
+                      {formatCurrency(vehicle.salesPerKm)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* DETAIL VIEW MODAL */}
+      {viewingItem && (
+        <dialog className="modal modal-open backdrop-blur-md">
+          <div className="modal-box w-11/12 max-w-5xl p-0 bg-base-100 shadow-2xl h-[90vh] flex flex-col overflow-hidden rounded-2xl">
+            <div className="flex-1 overflow-y-auto">
+              {/* Hero */}
+              <div className="relative h-72 w-full shrink-0">
+                <div className="absolute inset-0">
+                  <ImageCarousel
+                    images={[
+                      viewingItem.imageUrl,
+                      ...(viewingItem.images?.map((i: any) => i.url) || []),
+                    ].filter(Boolean)}
+                    alt={viewingItem.name}
+                    aspectRatio="h-full"
+                  />
+                </div>
+                <button
+                  onClick={() => setViewingItem(null)}
+                  className="fixed top-6 right-6 btn btn-circle btn-sm bg-black/50 text-white border-none hover:bg-black/70 z-50 backdrop-blur-sm"
+                >
+                  <X size={16} />
+                </button>
+                <div className="absolute bottom-0 left-0 w-full bg-linear-to-t from-black/90 via-black/50 to-transparent p-8 pt-24">
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-primary-content/80 text-xs font-bold uppercase tracking-wider mb-2">
+                        <Car size={14} /> {viewingItem.type}
+                      </div>
+                      <h1 className="text-4xl font-black text-white tracking-tight">
+                        {viewingItem.name}
+                      </h1>
+                      <div className="flex gap-6 mt-3">
+                        <span className="flex items-center gap-2 text-white/90 text-sm font-medium">
+                          <User size={16} /> {viewingItem.driverName}
+                        </span>
+                        <span className="flex items-center gap-2 text-white/90 text-sm font-medium">
+                          <Phone size={16} />{" "}
+                          {viewingItem.contactNumber || "N/A"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-3xl font-mono text-white font-bold tracking-tight bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20 shadow-2xl">
+                      {viewingItem.plateNumber}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-8 grid grid-cols-1 lg:grid-cols-3 gap-10">
+                {/* Left */}
+                <div className="lg:col-span-2 space-y-10">
+                  {/* Description / Details */}
+                  <section>
+                    <h3 className="font-bold text-xs uppercase text-base-content/40 mb-4 flex items-center gap-2 tracking-widest">
+                      <AlignLeft size={14} /> Vehicle Details
+                    </h3>
+                    <div className="prose prose-sm max-w-none text-base-content/80 bg-base-50 p-6 rounded-2xl border border-base-200">
+                      <p className="leading-relaxed whitespace-pre-wrap">
+                        {viewingItem.details ||
+                          "No specific details provided for this vehicle."}
+                      </p>
+                    </div>
+                  </section>
+
+                  {/* Pricing Table (Cost vs Sales) */}
+                  <section>
+                    <h3 className="font-bold text-xs uppercase text-base-content/40 mb-4 flex items-center gap-2 tracking-widest">
+                      <Coins size={14} /> Pricing Structure (NPR)
+                    </h3>
+                    <div className="overflow-x-auto border border-base-200 rounded-2xl shadow-sm">
+                      <table className="table w-full">
+                        <thead className="bg-base-50 text-xs uppercase text-base-content/50">
+                          <tr>
+                            <th>Rate Type</th>
+                            <th className="text-right text-error">
+                              Cost (Net)
+                            </th>
+                            <th className="text-right text-success">
+                              Sell (Gross)
+                            </th>
+                            <th className="text-right">Allowance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="hover:bg-base-50">
+                            <td className="font-bold">Daily Rate</td>
+                            <td className="text-right font-mono opacity-80">
+                              {formatCurrency(viewingItem.costPerDay)}
+                            </td>
+                            <td className="text-right font-mono font-bold text-success">
+                              {formatCurrency(viewingItem.salesPerDay)}
+                            </td>
+                            <td className="text-right font-mono text-xs opacity-50">
+                              -
+                            </td>
+                          </tr>
+                          <tr className="hover:bg-base-50">
+                            <td className="font-bold">Per Kilometer</td>
+                            <td className="text-right font-mono opacity-80">
+                              {formatCurrency(viewingItem.costPerKm)}
+                            </td>
+                            <td className="text-right font-mono font-bold text-success">
+                              {formatCurrency(viewingItem.salesPerKm)}
+                            </td>
+                            <td className="text-right font-mono text-xs opacity-50">
+                              -
+                            </td>
+                          </tr>
+                          <tr className="hover:bg-base-50">
+                            <td className="font-bold">Driver Allowance</td>
+                            <td className="text-right font-mono text-xs opacity-50">
+                              -
+                            </td>
+                            <td className="text-right font-mono text-xs opacity-50">
+                              -
+                            </td>
+                            <td className="text-right font-mono font-bold">
+                              {formatCurrency(viewingItem.driverAllowance)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  {/* Gallery */}
+                  {viewingItem.images && viewingItem.images.length > 0 && (
+                    <section>
+                      <h3 className="font-bold text-xs uppercase text-base-content/40 mb-4 flex items-center gap-2 tracking-widest">
+                        <Camera size={14} /> Vehicle Gallery
+                      </h3>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                        {viewingItem.images.map((img: any) => (
+                          <div
+                            key={img.id}
+                            className="relative aspect-square rounded-xl overflow-hidden group cursor-zoom-in border border-base-200 shadow-sm"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={img.url}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              alt="Gallery"
+                            />
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <ZoomIn
+                                className="text-white drop-shadow-md"
+                                size={20}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                </div>
+
+                {/* Right: Actions */}
+                <div>
+                  <div className="bg-base-50 p-5 rounded-2xl border border-base-200 sticky top-4 space-y-4">
+                    <h4 className="font-bold text-[10px] uppercase text-base-content/40 tracking-widest">
+                      Quick Actions
+                    </h4>
+                    <button
+                      onClick={() => {
+                        setViewingItem(null);
+                        handleEdit(viewingItem);
+                      }}
+                      className="btn btn-sm h-10 w-full gap-2 bg-white border-base-200 shadow-sm hover:border-primary hover:text-primary font-medium"
+                    >
+                      <Pencil size={14} /> Edit Vehicle
+                    </button>
+                    <button
+                      onClick={() => {
+                        setViewingItem(null);
+                        handleDeleteRequest(viewingItem.id);
+                      }}
+                      className="btn btn-sm h-10 w-full gap-2 btn-ghost text-error hover:bg-error/10 font-medium"
+                    >
+                      <Trash2 size={14} /> Delete Vehicle
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </dialog>
+      )}
+
+      {/* EDIT/CREATE MODAL */}
+      {isModalOpen && (
+        <dialog className="modal modal-open backdrop-blur-sm">
+          <div className="modal-box w-11/12 max-w-5xl p-0 overflow-hidden bg-base-100 shadow-2xl rounded-2xl">
+            <div className="px-8 py-5 border-b border-base-200 flex justify-between items-center bg-white">
+              <h3 className="font-bold text-xl text-base-content/80">
+                {editingItem ? "Edit Vehicle" : "New Vehicle"}
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="btn btn-sm btn-circle btn-ghost hover:bg-base-200"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form
+              key={editingItem?.id || "new"}
+              onSubmit={handleSubmit}
+              className="flex flex-col md:flex-row h-[75vh]"
+            >
+              {/* LEFT: INFO */}
+              <div className="md:w-3/5 bg-white p-8 space-y-6 border-r border-base-200 overflow-y-auto">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-base-content/50 uppercase tracking-wide ml-1">
+                    Vehicle Name <span className="text-error">*</span>
+                  </label>
+                  <input
+                    name="name"
+                    defaultValue={editingItem?.name}
+                    className="input w-full h-11 bg-base-50 border-base-300 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl transition-all font-medium"
+                    required
+                    placeholder="e.g. Mahindra Scorpio"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-base-content/50 uppercase tracking-wide ml-1">
+                      Type
+                    </label>
+                    <select
+                      name="type"
+                      defaultValue={editingItem?.type || "SUV"}
+                      className="select w-full h-11 bg-base-50 border-base-300 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl transition-all font-medium"
+                    >
+                      <option value="SUV">SUV</option>
+                      <option value="Bus">Bus</option>
+                      <option value="Van">Van</option>
+                      <option value="Car">Car</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-base-content/50 uppercase tracking-wide ml-1">
+                      Plate Number
+                    </label>
+                    <input
+                      name="plateNumber"
+                      defaultValue={editingItem?.plateNumber}
+                      className="input w-full h-11 bg-base-50 border-base-300 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl transition-all font-medium"
+                      placeholder="Ba 12 Cha..."
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-base-content/50 uppercase tracking-wide ml-1">
+                      Driver Name
+                    </label>
+                    <input
+                      name="driverName"
+                      defaultValue={editingItem?.driverName}
+                      className="input w-full h-11 bg-base-50 border-base-300 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl transition-all font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-base-content/50 uppercase tracking-wide ml-1">
+                      Contact Number
+                    </label>
+                    <input
+                      name="contactNumber"
+                      defaultValue={editingItem?.contactNumber}
+                      className="input w-full h-11 bg-base-50 border-base-300 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl transition-all font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="divider text-xs font-bold text-base-content/40 tracking-widest uppercase">
+                  Pricing (NPR)
+                </div>
+
+                {/* DAILY RATES */}
+                <div className="grid grid-cols-2 gap-4 mb-4 bg-base-50 p-3 rounded-xl border border-base-200">
+                  <div className="form-control">
+                    <label className="text-xs font-bold text-error uppercase">
+                      Cost / Day (Net)
+                    </label>
+                    <input
+                      name="costPerDay"
+                      type="number"
+                      defaultValue={editingItem?.costPerDay}
+                      className="input input-sm border-error/30 focus:border-error text-error font-mono"
+                    />
+                  </div>
+                  <div className="form-control">
+                    <label className="text-xs font-bold text-success uppercase">
+                      Sell / Day (Gross)
+                    </label>
+                    <input
+                      name="salesPerDay"
+                      type="number"
+                      defaultValue={editingItem?.salesPerDay}
+                      className="input input-sm border-success/30 focus:border-success text-success font-mono font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* KM RATES */}
+                <div className="grid grid-cols-2 gap-4 mb-4 bg-base-50 p-3 rounded-xl border border-base-200">
+                  <div className="form-control">
+                    <label className="text-xs font-bold text-error uppercase">
+                      Cost / Km
+                    </label>
+                    <input
+                      name="costPerKm"
+                      type="number"
+                      defaultValue={editingItem?.costPerKm}
+                      className="input input-sm border-error/30 focus:border-error text-error font-mono"
+                    />
+                  </div>
+                  <div className="form-control">
+                    <label className="text-xs font-bold text-success uppercase">
+                      Sell / Km
+                    </label>
+                    <input
+                      name="salesPerKm"
+                      type="number"
+                      defaultValue={editingItem?.salesPerKm}
+                      className="input input-sm border-success/30 focus:border-success text-success font-mono font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* ALLOWANCE */}
+                <div className="form-control">
+                  <label className="text-xs font-bold text-base-content/50 uppercase ml-1">
+                    Driver Allowance (Cost)
+                  </label>
+                  <input
+                    name="driverAllowance"
+                    type="number"
+                    defaultValue={editingItem?.driverAllowance}
+                    className="input w-full input-sm"
+                  />
+                  <span className="text-[10px] text-base-content/40 ml-1">
+                    Usually a direct cost (no markup)
+                  </span>
+                </div>
+
+                {/* Modern Editor for Details */}
+                <div className="space-y-1 pt-4">
+                  <label className="text-xs font-bold text-base-content/50 uppercase tracking-wide ml-1">
+                    Vehicle Details / Notes
+                  </label>
+                  <div className="border border-base-300 rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all bg-base-50">
+                    <div className="flex items-center gap-1 p-2 border-b border-base-200 bg-white/50 backdrop-blur-sm">
+                      <ToolbarBtn icon={Bold} />
+                      <ToolbarBtn icon={Italic} />
+                      <ToolbarBtn icon={Underline} />
+                      <div className="w-px h-4 bg-base-300 mx-1"></div>
+                      <ToolbarBtn icon={List} />
+                      <ToolbarBtn icon={ListOrdered} />
+                      <div className="w-px h-4 bg-base-300 mx-1"></div>
+                      <ToolbarBtn icon={LinkIcon} />
+                      <ToolbarBtn icon={Quote} />
+                    </div>
+                    <textarea
+                      name="details"
+                      defaultValue={editingItem?.details}
+                      className="textarea w-full h-32 resize-none border-none focus:outline-none bg-transparent text-base p-4 leading-relaxed"
+                      placeholder="Condition, facilities (AC, Music), seating capacity..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT: IMAGES */}
+              <div className="w-full md:w-2/5 px-8 py-4 flex flex-col bg-base-50/50 overflow-hidden">
+                <div className="mb-2">
+                  <label className="text-xs font-bold text-base-content/50 uppercase tracking-wide mb-2 block">
+                    Cover Image
+                  </label>
+                  <div className="h-48 rounded-2xl border border-base-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                    <ImageUpload
+                      name="image"
+                      defaultValue={editingItem?.imageUrl}
+                    />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-bold text-base-content/50 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <Camera size={14} /> Photo Gallery
+                  </label>
+                  <div className="bg-white rounded-2xl border border-base-200 pb-4 shadow-sm">
+                    <MultiImageUpload
+                      name="galleryImages"
+                      defaultImages={editingItem?.images}
+                      onRemoveExisting={handleDeleteGalleryImage}
+                    />
+                  </div>
+                </div>
+                <div className="mt-2 pt-6 border-t border-base-200 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="btn btn-ghost hover:bg-base-200 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary px-8 gap-2 rounded-xl shadow-lg shadow-primary/20"
+                  >
+                    <Save size={18} /> Save Vehicle
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </dialog>
+      )}
+
+      {/* CONFIRMATION */}
+      <ConfirmModal
+        isOpen={!!itemToDelete}
+        title="Delete Vehicle?"
+        message="This will remove the vehicle from your fleet."
+        isDanger={true}
+        onConfirm={confirmDelete}
+        onCancel={() => setItemToDelete(null)}
+      />
+    </div>
+  );
 }
