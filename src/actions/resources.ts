@@ -34,7 +34,41 @@ export async function saveImageLocally(
   await fs.writeFile(path.join(uploadDir, fileName), buffer);
   return `/uploads/${fileName}`;
 }
+const ACCEPTED_DOC_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "application/pdf", // 👈 Added PDF support
+];
+export async function saveDocumentLocally(
+  file: File | null,
+): Promise<string | null> {
+  if (!file || file.size === 0) return null;
 
+  // Validate type
+  if (!ACCEPTED_DOC_TYPES.includes(file.type)) {
+    console.error(`File type ${file.type} not allowed.`);
+    return null;
+  }
+
+  const fileExt = file.name.split(".").pop();
+  const fileName = `${crypto.randomUUID()}.${fileExt}`;
+
+  // Save to a separate 'documents' folder for better organization
+  const uploadDir = path.join(process.cwd(), "public", "documents");
+
+  try {
+    await fs.access(uploadDir);
+  } catch {
+    await fs.mkdir(uploadDir, { recursive: true });
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await fs.writeFile(path.join(uploadDir, fileName), buffer);
+
+  return `/documents/${fileName}`;
+}
 export async function handleGalleryUpload(
   formData: FormData,
   key: string = "galleryImages",

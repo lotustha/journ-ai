@@ -176,7 +176,7 @@ export function LocationManager({
       {/* 1. TOOLBAR */}
       <div className="flex flex-col xl:flex-row gap-4 justify-between items-center bg-base-100 p-4 rounded-xl border border-base-200 shadow-sm">
         <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto">
-          <div className="relative w-full md:w-56">
+          <div className="relative w-full md:w-38">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40"
               size={16}
@@ -190,7 +190,7 @@ export function LocationManager({
             />
           </div>
           <select
-            className="select select-bordered select-sm bg-base-50 w-full md:w-40"
+            className="select select-bordered select-sm bg-base-50 w-full md:w-38"
             value={filterCountry}
             onChange={(e) => setFilterCountry(e.target.value)}
           >
@@ -202,7 +202,7 @@ export function LocationManager({
             ))}
           </select>
           <select
-            className="select select-bordered select-sm bg-base-50 w-full md:w-40"
+            className="select select-bordered select-sm bg-base-50 w-full md:w-38"
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
           >
@@ -211,7 +211,7 @@ export function LocationManager({
             <option value="STOPOVER">Highway Stops</option>
           </select>
           <select
-            className="select select-bordered select-sm bg-base-50 w-full md:w-40"
+            className="select select-bordered select-sm bg-base-50 w-full md:w-38"
             onChange={(e) => {
               const [key, dir] = e.target.value.split("-");
               setSortConfig({ key, direction: dir as "asc" | "desc" });

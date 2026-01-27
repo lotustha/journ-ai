@@ -50,22 +50,65 @@ enum IncidentSeverity {
 // =========================================
 // 2. USER & AUTH
 // =========================================
-
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String?
-  role         Role     @default(STAFF)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  role          Role      @default(CLIENT)
+  
+  // OPTIONAL: Password is optional so you can add clients manually without them needing to login immediately
+  passwordHash  String?   
+  
+  // OPTIONAL: Profile Picture
+  image         String?   
 
-  // Relations
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  clientProfile ClientProfile?
   notifications Notification[]
   createdTours  Tour[]         @relation("TourCreator")
   bookedTours   Tour[]         @relation("TourClient")
 }
 
+model ClientProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Basic Contact (Optional)
+  phone       String?
+  nationality String? 
+  address     String? @db.Text
+
+  // Travel Docs (All Optional)
+  dateOfBirth    DateTime?
+  gender         String?
+  passportNumber String?
+  passportExpiry DateTime?
+
+  // Preferences & Health (All Optional)
+  dietaryInfo String?   // e.g. "Vegetarian"
+  medicalInfo String?   @db.Text 
+  
+  // Safety / Emergency (All Optional)
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
+  notes String? @db.Text 
+  documents ClientDocument[]
+}
+model ClientDocument {
+  id              String        @id @default(cuid())
+  name            String        // e.g. "John Passport"
+  type            String        // "PASSPORT", "VISA", "TICKET", "INSURANCE", "OTHER"
+  url             String        @db.Text
+  
+  clientProfileId String
+  clientProfile   ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime      @default(now())
+}
 model PasswordResetToken {
   id        String   @id @default(cuid())
   email     String
