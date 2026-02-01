@@ -47,23 +47,29 @@ enum IncidentSeverity {
   CRITICAL
 }
 
+// 🆕 NEW: Defines what kind of event is happening in the itinerary
+enum ItemType {
+  TRANSFER // Vehicles, Flights, Trains
+  ACCOMMODATION // Hotels, Lodges
+  ACTIVITY // Sightseeing, Adventure
+  MEAL // Restaurants, Lunch Stops
+  NOTE // "Free time", "Border crossing", "Briefing"
+}
+
 // =========================================
 // 2. USER & AUTH
 // =========================================
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  role          Role      @default(CLIENT)
-  
-  // OPTIONAL: Password is optional so you can add clients manually without them needing to login immediately
-  passwordHash  String?   
-  
-  // OPTIONAL: Profile Picture
-  image         String?   
+  id    String  @id @default(cuid())
+  email String  @unique
+  name  String?
+  role  Role    @default(CLIENT)
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  passwordHash String?
+  image        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   clientProfile ClientProfile?
   notifications Notification[]
@@ -76,39 +82,41 @@ model ClientProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Basic Contact (Optional)
+  // Basic Contact
   phone       String?
-  nationality String? 
+  nationality String?
   address     String? @db.Text
 
-  // Travel Docs (All Optional)
+  // Travel Docs
   dateOfBirth    DateTime?
   gender         String?
   passportNumber String?
   passportExpiry DateTime?
 
-  // Preferences & Health (All Optional)
-  dietaryInfo String?   // e.g. "Vegetarian"
-  medicalInfo String?   @db.Text 
-  
-  // Safety / Emergency (All Optional)
+  // Preferences & Health
+  dietaryInfo String? // e.g. "Vegetarian"
+  medicalInfo String? @db.Text
+
+  // Safety / Emergency
   emergencyContactName  String?
   emergencyContactPhone String?
 
-  notes String? @db.Text 
+  notes     String?          @db.Text
   documents ClientDocument[]
 }
+
 model ClientDocument {
-  id              String        @id @default(cuid())
-  name            String        // e.g. "John Passport"
-  type            String        // "PASSPORT", "VISA", "TICKET", "INSURANCE", "OTHER"
-  url             String        @db.Text
-  
+  id   String @id @default(cuid())
+  name String // e.g. "John Passport"
+  type String // "PASSPORT", "VISA", "TICKET"
+  url  String @db.Text
+
   clientProfileId String
   clientProfile   ClientProfile @relation(fields: [clientProfileId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime      @default(now())
+  createdAt DateTime @default(now())
 }
+
 model PasswordResetToken {
   id        String   @id @default(cuid())
   email     String
@@ -169,11 +177,11 @@ model ParticipantSummary {
   tourId String @unique
   tour   Tour   @relation(fields: [tourId], references: [id], onDelete: Cascade)
 
-  totalPax Int @default(0)
-  boys     Int @default(0)
-  girls    Int @default(0)
-  veg      Int @default(0)
-  nonVeg   Int @default(0)
+  totalPax Int  @default(0)
+  boys     Int?
+  girls    Int?
+  veg      Int  @default(0)
+  nonVeg   Int  @default(0)
 }
 
 model PaymentTransaction {
@@ -193,7 +201,7 @@ model PaymentTransaction {
 }
 
 // =========================================
-// 4. RESOURCE LIBRARY (LOCATIONS & ASSETS)
+// 4. RESOURCE LIBRARY
 // =========================================
 
 // --- COUNTRY ---
@@ -201,8 +209,8 @@ model Country {
   id          String         @id @default(cuid())
   name        String         @unique
   description String?        @db.Text
-  imageUrl    String?        @db.Text // Main Cover Image
-  images      CountryImage[] // Gallery
+  imageUrl    String?        @db.Text
+  images      CountryImage[]
   locations   Location[]
 }
 
@@ -216,21 +224,25 @@ model CountryImage {
 // --- LOCATION ---
 model Location {
   id        String  @id @default(cuid())
-  name      String  @unique // Unique identifier
+  name      String  @unique
   countryId String
   country   Country @relation(fields: [countryId], references: [id], onDelete: Cascade)
 
   description String? @db.Text
-  altitude    Int? // e.g. 1400 (meters)
-
-  type String @default("DESTINATION") // "DESTINATION" or "STOPOVER"
+  altitude    Int?
+  type        String  @default("DESTINATION") // "DESTINATION" or "STOPOVER"
 
   imageUrl String?         @db.Text
-  images   LocationImage[] // Gallery relation
+  images   LocationImage[]
 
   hotels      Hotel[]
   activities  Activity[]
   restaurants Restaurant[]
+
+  // 🆕 NEW: Relations for Smart Routing
+  routesStarting Route[]         @relation("RouteOrigin")
+  routesEnding   Route[]         @relation("RouteDestination")
+  stopovers      RouteStopover[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -255,8 +267,10 @@ model Hotel {
   imageUrl    String?      @db.Text
   images      HotelImage[]
 
-  rates         HotelRoomRate[]
-  itineraryDays ItineraryDay[]
+  rates HotelRoomRate[]
+
+  // 🆕 UPDATED: Linked to Items, not Days
+  itineraryItems ItineraryItem[]
 
   createdAt DateTime @default(now())
 }
@@ -273,21 +287,20 @@ model HotelRoomRate {
   hotelId String
   hotel   Hotel  @relation(fields: [hotelId], references: [id], onDelete: Cascade)
 
-  roomType   String // "Standard", "Deluxe"
-  mealPlan   String // "EP", "BB", "MAP"
+  roomType   String
+  mealPlan   String
   inclusions String? @db.Text
 
-  // PRICING (Profit Margin Model)
-  costPrice  Decimal @default(0.00) @db.Decimal(10, 2) // Net Rate (Pay to Vendor)
-  salesPrice Decimal @default(0.00) @db.Decimal(10, 2) // Gross Rate (Charge to Client)
+  costPrice  Decimal @default(0.00) @db.Decimal(10, 2)
+  salesPrice Decimal @default(0.00) @db.Decimal(10, 2)
   currency   String  @default("NPR")
 }
 
 // --- VEHICLE ---
 model Vehicle {
   id            String  @id @default(cuid())
-  name          String // "Toyota Scorpio"
-  type          String // "SUV", "Bus"
+  name          String
+  type          String
   plateNumber   String?
   driverName    String?
   contactNumber String?
@@ -296,21 +309,17 @@ model Vehicle {
   images   VehicleImage[]
   details  String?        @db.Text
 
-  // PRICING (Profit Margin Model)
-  // 1. Daily Rates
   costPerDay  Decimal @default(0.00) @db.Decimal(10, 2)
   salesPerDay Decimal @default(0.00) @db.Decimal(10, 2)
 
-  // 2. Kilometer Rates
   costPerKm  Decimal @default(0.00) @db.Decimal(10, 2)
   salesPerKm Decimal @default(0.00) @db.Decimal(10, 2)
 
-  // 3. Driver Allowance (Usually pass-through cost)
   driverAllowance Decimal @default(0.00) @db.Decimal(10, 2)
+  currency        String  @default("NPR")
 
-  currency String @default("NPR")
-
-  itineraryDays ItineraryDay[]
+  // 🆕 UPDATED: Linked to Items
+  itineraryItems ItineraryItem[]
 }
 
 model VehicleImage {
@@ -332,12 +341,12 @@ model Activity {
   imageUrl String?         @db.Text
   images   ActivityImage[]
 
-  // PRICING (Profit Margin Model)
-  costPrice  Decimal @default(0.00) @db.Decimal(10, 2) // Net Rate
-  salesPrice Decimal @default(0.00) @db.Decimal(10, 2) // Gross Rate
+  costPrice  Decimal @default(0.00) @db.Decimal(10, 2)
+  salesPrice Decimal @default(0.00) @db.Decimal(10, 2)
   currency   String  @default("NPR")
 
-  itineraryDays ItineraryDay[]
+  // 🆕 UPDATED: Linked to Items
+  itineraryItems ItineraryItem[]
 }
 
 model ActivityImage {
@@ -347,15 +356,14 @@ model ActivityImage {
   activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
 }
 
-// --- STAFF & GUIDES ---
+// --- STAFF ---
 model Staff {
   id          String  @id @default(cuid())
   name        String
-  role        String // e.g. "Senior Guide", "Driver"
+  role        String
   languages   String?
   contactInfo String?
 
-  // PRICING
   dailySalary Decimal @default(0.00) @db.Decimal(10, 2)
   currency    String  @default("NPR")
 
@@ -379,17 +387,19 @@ model Restaurant {
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id])
 
-  cuisine     String? // e.g. "Thakali, Continental"
+  cuisine     String?
   contactInfo String?
 
-  // PRICING (Profit Margin Model)
-  costPrice  Decimal @default(0.00) @db.Decimal(10, 2) // Net Meal Cost
-  salesPrice Decimal @default(0.00) @db.Decimal(10, 2) // Gross Meal Price
+  costPrice  Decimal @default(0.00) @db.Decimal(10, 2)
+  salesPrice Decimal @default(0.00) @db.Decimal(10, 2)
   currency   String  @default("NPR")
 
   details  String?           @db.Text
   imageUrl String?           @db.Text
   images   RestaurantImage[]
+
+  // 🆕 UPDATED: Linked to Items
+  itineraryItems ItineraryItem[]
 }
 
 model RestaurantImage {
@@ -400,30 +410,96 @@ model RestaurantImage {
 }
 
 // =========================================
-// 5. ITINERARY LINKING
+// 5. ITINERARY LINKING (REFACTORED)
 // =========================================
 
+// 🆕: A container for "Day 1", "Day 2"
 model ItineraryDay {
-  id        String @id @default(cuid())
-  tourId    String
-  tour      Tour   @relation(fields: [tourId], references: [id], onDelete: Cascade)
-  dayNumber Int
+  id     String @id @default(cuid())
+  tourId String
+  tour   Tour   @relation(fields: [tourId], references: [id], onDelete: Cascade)
 
-  // Resource Links
+  dayNumber Int // 1, 2, 3...
+  title     String? // e.g. "Arrival in Kathmandu"
+  date      DateTime? // Optional: Specific date for this day
+
+  items ItineraryItem[]
+
+  createdAt DateTime @default(now())
+}
+
+// 🆕: Specific events within a day (Breakfast, Drive, Hotel, Activity)
+model ItineraryItem {
+  id             String       @id @default(cuid())
+  itineraryDayId String
+  itineraryDay   ItineraryDay @relation(fields: [itineraryDayId], references: [id], onDelete: Cascade)
+
+  order Int      @default(0) // 0=Morning, 1=Noon, etc.
+  type  ItemType // TRANSFER, ACCOMMODATION, etc.
+
+  // -- DYNAMIC RESOURCE LINKS --
   hotelId String?
   hotel   Hotel?  @relation(fields: [hotelId], references: [id])
 
   activityId String?
   activity   Activity? @relation(fields: [activityId], references: [id])
 
-  transportId String?
-  vehicle     Vehicle? @relation(fields: [transportId], references: [id])
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id])
 
-  notes String? @db.Text
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+
+  // -- CONTENT & PRICING SNAPSHOTS --
+  title       String? // Custom title override (e.g. "Lunch at Mugling")
+  description String? @db.Text
+  time        String? // e.g. "10:00 AM" or "3 Hours"
+
+  // We lock the price here so database updates don't change historic tours
+  costPrice  Decimal @default(0.00) @db.Decimal(10, 2)
+  salesPrice Decimal @default(0.00) @db.Decimal(10, 2)
 }
 
 // =========================================
-// 6. OPERATIONS & SAFETY
+// 6. INTELLIGENT ROUTING (THE BRAIN)
+// =========================================
+
+// 🆕: Defines a known path (e.g. Kathmandu -> Pokhara)
+model Route {
+  id String @id @default(cuid())
+
+  originId      String
+  destinationId String
+  origin        Location @relation("RouteOrigin", fields: [originId], references: [id])
+  destination   Location @relation("RouteDestination", fields: [destinationId], references: [id])
+
+  distanceKm   Int? // e.g. 200
+  durationMins Int? // e.g. 420 (7 hours)
+  description  String? @db.Text
+
+  stopovers RouteStopover[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([originId, destinationId])
+}
+
+// 🆕: Points of interest along a route (e.g. Mugling)
+model RouteStopover {
+  id      String @id @default(cuid())
+  routeId String
+  route   Route  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+
+  isLunchStop Boolean @default(false)
+  order       Int     @default(0)
+}
+
+// =========================================
+// 7. OPERATIONS & SAFETY
 // =========================================
 
 model IncidentLog {
